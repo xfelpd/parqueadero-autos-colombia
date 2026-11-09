@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Autos Colombia – Control de acceso</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:0;background:#f4f6f8;color:#1f2933}
+  header{background:#0b3d91;color:#fff;padding:14px 24px;font-size:20px}
+  main{max-width:900px;margin:24px auto;padding:0 16px;display:grid;gap:16px}
+  section{background:#fff;border-radius:8px;padding:16px;box-shadow:0 1px 3px #0002}
+  input,select,button{padding:8px;font-size:15px;margin:4px 4px 4px 0}
+  button{background:#0b3d91;color:#fff;border:0;border-radius:6px;cursor:pointer}
+  button.sec{background:#c0392b}
+  button.gris{background:#6b7785}
+  button.chico{padding:4px 8px;font-size:13px;margin:2px}
+  table{width:100%;border-collapse:collapse} td,th{padding:6px;border-bottom:1px solid #e4e7eb;text-align:left}
+  #msg{padding:8px;border-radius:6px;display:none} .ok{background:#d4edda}.err{background:#f8d7da}
+  .celdas{display:flex;flex-wrap:wrap;gap:8px}
+  .celda{width:64px;padding:10px 0;text-align:center;border-radius:6px;color:#fff;font-weight:600}
+  .libre{background:#2e9e5b}.ocupada{background:#c0392b}.mantenimiento{background:#888}
+  .etiqueta{display:inline-block;padding:2px 8px;border-radius:10px;color:#fff;font-size:13px}
+  #menu{display:flex;flex-wrap:wrap;gap:4px}
+  #menu button{background:#fff;color:#0b3d91;border:1px solid #0b3d91}
+  #menu button.on{background:#0b3d91;color:#fff}
+  .vista{display:none;gap:16px}
+  .ayuda{color:#52606d;font-size:14px}
+  h3{margin-top:0}
+</style>
+</head>
+<body>
+<header>Autos Colombia · Control de acceso</header>
+<main>
+  <div id="msg"></div>
+  <section id="login">
+    <h3>Iniciar sesión</h3>
+    <input id="usuario" placeholder="Usuario" value="operador">
+    <input id="password" type="password" placeholder="Contraseña" value="1234">
+    <button onclick="login()">Ingresar</button>
+    <p class="ayuda">Cuentas de demostración: operador / 1234 y administrador / admin1234. Cambie las contraseñas desde «Mi cuenta».</p>
+  </section>
+
+  <div id="panel" style="display:none;gap:16px">
+    <nav id="menu"></nav>
+
+    <!-- Portería (Iteración 1) -->
+    <div class="vista" id="vista-porteria">
+      <section>
+        <h3>Registrar entrada / salida</h3>
+        <input id="placa" placeholder="Placa (ABC123)" maxlength="7" style="text-transform:uppercase">
+        <button onclick="mover('entradas')">Registrar entrada</button>
+        <button class="sec" onclick="mover('salidas')">Registrar salida</button>
+      </section>
+      <section>
+        <h3>Registrar novedad</h3>
+        <select id="tipo"><option value="daño">Daño</option><option value="objeto_olvidado">Objeto olvidado</option>
+          <option value="incidente">Incidente</option><option value="otro">Otro</option></select>
+        <input id="desc" placeholder="Descripción" size="40">
+        <button onclick="novedad()">Guardar novedad</button>
+      </section>
+      <section><h3>Celdas</h3><div class="celdas" id="celdas"></div></section>
+      <section><h3>Vehículos dentro del parqueadero</h3>
+        <table><thead><tr><th>Placa</th><th>Celda</th><th>Cliente</th><th>Entrada</th></tr></thead><tbody id="activos"></tbody></table>
+      </section>
+    </div>
+
+    <!-- Clientes y vehículos (HU-08 a HU-12, HU-18) -->
+    <div class="vista" id="vista-clientes">
+      <section>
+        <h3>Clientes</h3>
+        <input id="buscar" placeholder="Buscar por nombre o documento" size="32" oninput="cargarClientes()">
+        <table><thead><tr><th>Nombre</th><th>Documento</th><th>Teléfono</th><th>Acciones</th></tr></thead><tbody id="clientes"></tbody></table>
+      </section>
+      <section>
+        <h3 id="titulo-cliente">Registrar cliente</h3>
+        <input type="hidden" id="c-id">
+        <input id="c-nombre" placeholder="Nombre">
+        <input id="c-doc" placeholder="Documento">
+        <input id="c-tel" placeholder="Teléfono (opcional)">
+        <input id="c-email" placeholder="Correo (opcional)">
+        <button onclick="guardarCliente()">Guardar cliente</button>
+        <button class="gris" onclick="limpiarCliente()">Cancelar</button>
+      </section>
+      <section id="detalle" style="display:none">
+        <h3 id="detalle-titulo"></h3>
+        <p id="detalle-mens"></p>
+        <div id="detalle-asignar"></div>
+        <table><thead><tr><th>Placa</th><th>Tipo</th><th>Marca</th><th>Color</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="vehiculos"></tbody></table>
+        <h3 id="titulo-vehiculo" style="margin-top:16px">Registrar vehículo</h3>
+        <input id="v-placa" placeholder="Placa (ABC123)" maxlength="7" style="text-transform:uppercase">
+        <select id="v-tipo"><option value="carro">Carro</option><option value="moto">Moto</option></select>
+        <input id="v-marca" placeholder="Marca">
+        <input id="v-color" placeholder="Color">
+        <button onclick="guardarVehiculo()">Guardar vehículo</button>
+        <button class="gris" onclick="limpiarVehiculo()">Cancelar</button>
+      </section>
+    </div>
+
+    <!-- Usuarios del sistema (HU-13) -->
+    <div class="vista" id="vista-operadores">
+      <section>
+        <h3>Cuentas del sistema</h3>
+        <table><thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="operadores"></tbody></table>
+      </section>
+      <section>
+        <h3>Crear cuenta</h3>
+        <input id="o-nombre" placeholder="Nombre">
+        <input id="o-usuario" placeholder="Usuario">
+        <input id="o-pass" type="password" placeholder="Contraseña (mínimo 8)">
+        <select id="o-rol"><option value="operador">Operador</option><option value="administrador">Administrador</option></select>
+        <button onclick="crearOperador()">Crear cuenta</button>
+      </section>
+    </div>
+
+    <!-- Celdas (HU-15 a HU-19) -->
+    <div class="vista" id="vista-celdas">
+      <section>
+        <h3>Estado de las celdas</h3>
+        <p id="resumen" class="ayuda"></p>
+        <select id="f-tipo" onchange="cargarCeldas()"><option value="">Todos los tipos</option><option value="carro">Carro</option><option value="moto">Moto</option></select>
+        <select id="f-estado" onchange="cargarCeldas()"><option value="">Todos los estados</option><option value="libre">Libre</option><option value="ocupada">Ocupada</option><option value="mantenimiento">Mantenimiento</option></select>
+        <table><thead><tr><th>Código</th><th>Tipo</th><th>Estado</th><th>Vehículo</th><th class="solo-admin">Acciones</th></tr></thead><tbody id="tabla-celdas"></tbody></table>
+      </section>
+      <section class="solo-admin">
+        <h3>Registrar celda</h3>
+        <input id="n-codigo" placeholder="Código (ej. B1)">
+        <select id="n-tipo"><option value="carro">Carro</option><option value="moto">Moto</option></select>
+        <button onclick="crearCelda()">Registrar celda</button>
+      </section>
+    </div>
+
+    <!-- Mi cuenta (HU-14) -->
+    <div class="vista" id="vista-cuenta">
+      <section>
+        <h3>Cambiar contraseña</h3>
+        <input id="p-actual" type="password" placeholder="Contraseña actual">
+        <input id="p-nueva" type="password" placeholder="Nueva contraseña (mínimo 8)">
+        <button onclick="cambiarPassword()">Cambiar contraseña</button>
+      </section>
+    </div>
+  </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let rol = null, clienteActual = null, placaEditada = null;
+
+function aviso(t, ok){const m=$('msg');m.textContent=t;m.className=ok?'ok':'err';m.style.display='block';}
+async function api(url, body, metodo){
+  const r = await fetch(url,{method:metodo||(body?'POST':'GET'),headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  const d = await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.error||'Error'); return d;
+}
+// Envuelve un manejador: cualquier error de la API se muestra como aviso.
+const seguro = f => async (...a) => { try { await f(...a); } catch(e) { aviso(e.message,false); } };
+
+/* ---------- Sesión y menú ---------- */
+async function login(){
+  try{
+    const d = await api('/api/login',{usuario:$('usuario').value,password:$('password').value});
+    rol = d.rol; $('login').style.display='none'; $('panel').style.display='grid';
+    construirMenu(); mostrar('porteria'); aviso('Sesión iniciada como '+d.nombre,true);
+  } catch(e){aviso(e.message,false);}
+}
+function construirMenu(){
+  const admin = rol==='administrador';
+  const vistas = [['porteria','Portería'],['clientes','Clientes y vehículos',1],['operadores','Cuentas del sistema',1],['celdas','Celdas'],['cuenta','Mi cuenta']]
+    .filter(v => admin || !v[2]);
+  $('menu').innerHTML = vistas.map(v=>`<button id="m-${v[0]}" onclick="mostrar('${v[0]}')">${v[1]}</button>`).join('')
+    + '<button class="sec" onclick="salir()">Cerrar sesión</button>';
+  document.querySelectorAll('.solo-admin').forEach(e => e.style.display = admin ? '' : 'none');
+}
+async function salir(){ await api('/api/logout',{}); location.reload(); }
+const cargadores = {porteria:()=>refrescar(), clientes:()=>cargarClientes(), operadores:()=>cargarOperadores(), celdas:()=>cargarCeldas(), cuenta:()=>{}};
+function mostrar(v){
+  document.querySelectorAll('.vista').forEach(e=>e.style.display='none');
+  $('vista-'+v).style.display='grid';
+  document.querySelectorAll('#menu button').forEach(b=>b.classList.toggle('on', b.id==='m-'+v));
+  $('msg').style.display='none';
+  seguro(cargadores[v])();
+}
+
+/* ---------- Portería (Iteración 1) ---------- */
+async function mover(tipo){
+  try{const d=await api('/api/'+tipo,{placa:$('placa').value});
+    aviso(tipo==='entradas'?`Entrada registrada: ${d.placa} en celda ${d.celda}`:`Salida registrada: ${d.placa}`,true);
+    $('placa').value='';refrescar();}
+  catch(e){aviso(e.message,false);}
+}
+async function novedad(){
+  try{await api('/api/novedades',{placa:$('placa').value,tipo:$('tipo').value,descripcion:$('desc').value});
+    aviso('Novedad registrada',true);$('desc').value='';}
+  catch(e){aviso(e.message,false);}
+}
+async function refrescar(){
+  const [c,a]=await Promise.all([api('/api/celdas'),api('/api/movimientos/activos')]);
+  $('celdas').innerHTML=c.map(x=>`<div class="celda ${x.estado}">${esc(x.codigo)}</div>`).join('');
+  $('activos').innerHTML=a.map(x=>`<tr><td>${esc(x.placa)}</td><td>${esc(x.celda)}</td><td>${esc(x.cliente)}</td><td>${esc(x.fecha_entrada.replace('T',' '))}</td></tr>`).join('')||'<tr><td colspan=4>Sin vehículos</td></tr>';
+}
+
+/* ---------- Clientes (RF-13 a RF-15, RF-19) ---------- */
+async function cargarClientes(){
+  const lista = await api('/api/clientes?q='+encodeURIComponent($('buscar').value));
+  $('clientes').innerHTML = lista.map(c=>`<tr><td>${esc(c.nombre)}</td><td>${esc(c.documento)}</td><td>${esc(c.telefono)}</td>
+    <td><button class="chico" onclick="verCliente(${c.id})">Ver vehículos</button>
+        <button class="chico gris" data-id="${c.id}" data-nombre="${esc(c.nombre)}" data-doc="${esc(c.documento)}" data-tel="${esc(c.telefono)}" data-email="${esc(c.email)}" onclick="editarCliente(this)">Editar</button>
+        <button class="chico sec" onclick="eliminarCliente(${c.id})">Eliminar</button></td></tr>`).join('')
+    || '<tr><td colspan=4>No se encontraron clientes</td></tr>';
+}
+function limpiarCliente(){ ['c-id','c-nombre','c-doc','c-tel','c-email'].forEach(i=>$(i).value=''); $('titulo-cliente').textContent='Registrar cliente'; }
+function editarCliente(b){
+  $('c-id').value=b.dataset.id; $('c-nombre').value=b.dataset.nombre; $('c-doc').value=b.dataset.doc;
+  $('c-tel').value=b.dataset.tel; $('c-email').value=b.dataset.email; $('titulo-cliente').textContent='Modificar cliente';
+}
+const guardarCliente = seguro(async()=>{
+  const cuerpo={nombre:$('c-nombre').value,documento:$('c-doc').value,telefono:$('c-tel').value,email:$('c-email').value};
+  const id=$('c-id').value;
+  await (id ? api('/api/clientes/'+id,cuerpo,'PUT') : api('/api/clientes',cuerpo));
+  aviso(id?'Cliente actualizado':'Cliente registrado',true); limpiarCliente(); cargarClientes();
+});
+const eliminarCliente = seguro(async id=>{
+  if(!confirm('¿Eliminar este cliente?')) return;
+  await api('/api/clientes/'+id,null,'DELETE'); aviso('Cliente eliminado',true);
+  if(clienteActual===id){ $('detalle').style.display='none'; clienteActual=null; } cargarClientes();
+});
+
+/* ---------- Vehículos y mensualidad (RF-16 a RF-18, RF-27) ---------- */
+const verCliente = seguro(async id=>{
+  const d = await api('/api/clientes/'+id+'/vehiculos'); clienteActual = id;
+  $('detalle').style.display='block'; limpiarVehiculo();
+  $('detalle-titulo').textContent = d.cliente.nombre+' · documento '+d.cliente.documento;
+  const m = d.mensualidad;
+  $('detalle-mens').textContent = m ? `Mensualidad vigente hasta ${m.fecha_fin}. Celda asignada: ${m.celda||'ninguna'}.` : 'Sin mensualidad vigente.';
+  $('detalle-asignar').innerHTML = '';
+  if(m){
+    const tipos = [...new Set(d.vehiculos.map(v=>v.tipo))];
+    const celdas = (await api('/api/celdas')).filter(c=>tipos.length===0||tipos.includes(c.tipo));
+    $('detalle-asignar').innerHTML = `<select id="a-celda">${celdas.map(c=>`<option value="${c.id}" ${c.id===m.celda_id?'selected':''}>${esc(c.codigo)} (${c.tipo}, ${c.estado})</option>`).join('')}</select>
+      <button onclick="asignarCelda(${m.id})">Asignar celda</button>`;
+  }
+  $('vehiculos').innerHTML = d.vehiculos.map(v=>`<tr><td>${esc(v.placa)}</td><td>${esc(v.tipo)}</td><td>${esc(v.marca)}</td><td>${esc(v.color)}</td>
+    <td>${v.dentro?'Dentro':'Fuera'}</td>
+    <td><button class="chico gris" data-placa="${esc(v.placa)}" data-tipo="${esc(v.tipo)}" data-marca="${esc(v.marca)}" data-color="${esc(v.color)}" onclick="editarVehiculo(this)">Editar</button>
+        <button class="chico sec" data-placa="${esc(v.placa)}" onclick="eliminarVehiculo(this.dataset.placa)">Eliminar</button></td></tr>`).join('')
+    || '<tr><td colspan=6>El cliente no tiene vehículos registrados</td></tr>';
+});
+const asignarCelda = seguro(async mid=>{
+  const d = await api('/api/mensualidades/'+mid+'/celda',{celda_id:Number($('a-celda').value)},'PUT');
+  aviso('Celda '+d.celda+' asignada a la mensualidad',true); verCliente(clienteActual);
+});
+function limpiarVehiculo(){
+  placaEditada=null; $('v-placa').disabled=false;
+  ['v-placa','v-marca','v-color'].forEach(i=>$(i).value=''); $('v-tipo').value='carro'; $('titulo-vehiculo').textContent='Registrar vehículo';
+}
+function editarVehiculo(b){
+  placaEditada=b.dataset.placa; $('v-placa').value=b.dataset.placa; $('v-placa').disabled=true; // la placa no se edita
+  $('v-tipo').value=b.dataset.tipo; $('v-marca').value=b.dataset.marca; $('v-color').value=b.dataset.color;
+  $('titulo-vehiculo').textContent='Modificar vehículo';
+}
+const guardarVehiculo = seguro(async()=>{
+  const cuerpo={tipo:$('v-tipo').value,marca:$('v-marca').value,color:$('v-color').value,cliente_id:clienteActual};
+  if(placaEditada) await api('/api/vehiculos/'+placaEditada,cuerpo,'PUT');
+  else await api('/api/vehiculos',{...cuerpo,placa:$('v-placa').value});
+  aviso(placaEditada?'Vehículo actualizado':'Vehículo registrado',true); verCliente(clienteActual);
+});
+const eliminarVehiculo = seguro(async placa=>{
+  if(!confirm('¿Eliminar el vehículo '+placa+'?')) return;
+  await api('/api/vehiculos/'+placa,null,'DELETE'); aviso('Vehículo eliminado',true); verCliente(clienteActual);
+});
+
+/* ---------- Cuentas del sistema (RF-20, RF-21) ---------- */
+async function cargarOperadores(){
+  const lista = await api('/api/operadores');
+  $('operadores').innerHTML = lista.map(o=>`<tr><td>${esc(o.nombre)}</td><td>${esc(o.usuario)}</td><td>${esc(o.rol)}</td><td>${o.activo?'Activa':'Desactivada'}</td>
+    <td><button class="chico gris" onclick="cambiarOperador(${o.id},{rol:'${o.rol==='administrador'?'operador':'administrador'}'})">Pasar a ${o.rol==='administrador'?'operador':'administrador'}</button>
+        <button class="chico ${o.activo?'sec':''}" onclick="cambiarOperador(${o.id},{activo:${!o.activo}})">${o.activo?'Desactivar':'Activar'}</button></td></tr>`).join('');
+}
+const cambiarOperador = seguro(async(id,cambios)=>{ await api('/api/operadores/'+id,cambios,'PUT'); aviso('Cuenta actualizada',true); cargarOperadores(); });
+const crearOperador = seguro(async()=>{
+  await api('/api/operadores',{nombre:$('o-nombre').value,usuario:$('o-usuario').value,password:$('o-pass').value,rol:$('o-rol').value});
+  ['o-nombre','o-usuario','o-pass'].forEach(i=>$(i).value=''); aviso('Cuenta creada',true); cargarOperadores();
+});
+const cambiarPassword = seguro(async()=>{
+  await api('/api/cambiar-password',{actual:$('p-actual').value,nueva:$('p-nueva').value});
+  $('p-actual').value=''; $('p-nueva').value=''; aviso('Contraseña actualizada',true);
+});
+
+/* ---------- Celdas (RF-23 a RF-29) ---------- */
+async function cargarCeldas(){
+  const q = new URLSearchParams();
+  if($('f-tipo').value) q.set('tipo',$('f-tipo').value);
+  if($('f-estado').value) q.set('estado',$('f-estado').value);
+  const [lista, r] = await Promise.all([api('/api/celdas?'+q), api('/api/celdas/resumen')]);
+  const e = r.por_estado;
+  $('resumen').textContent = `${r.total} celdas: ${e.libre} libres, ${e.ocupada} ocupadas, ${e.mantenimiento} en mantenimiento. Carros: ${r.por_tipo.carro.total}. Motos: ${r.por_tipo.moto.total}.`;
+  const admin = rol==='administrador';
+  $('tabla-celdas').innerHTML = lista.map(c=>`<tr><td>${esc(c.codigo)}</td><td>${esc(c.tipo)}</td>
+    <td><span class="etiqueta ${c.estado}">${c.estado}</span></td><td>${esc(c.placa||'')}</td>
+    ${admin?`<td>
+      ${c.estado==='mantenimiento'?`<button class="chico" onclick="estadoCelda(${c.id},'libre')">Reactivar</button>`
+        :c.estado==='libre'?`<button class="chico gris" onclick="estadoCelda(${c.id},'mantenimiento')">Mantenimiento</button>`:''}
+      <button class="chico gris" data-id="${c.id}" data-codigo="${esc(c.codigo)}" data-tipo="${c.tipo}" onclick="editarCelda(this)">Editar</button>
+      <button class="chico sec" onclick="eliminarCelda(${c.id})">Eliminar</button></td>`:''}</tr>`).join('')
+    || `<tr><td colspan=${admin?5:4}>No hay celdas con ese filtro</td></tr>`;
+}
+const crearCelda = seguro(async()=>{
+  await api('/api/celdas',{codigo:$('n-codigo').value,tipo:$('n-tipo').value}); $('n-codigo').value='';
+  aviso('Celda registrada',true); cargarCeldas();
+});
+const estadoCelda = seguro(async(id,estado)=>{ await api('/api/celdas/'+id+'/estado',{estado},'PUT'); aviso('Estado actualizado',true); cargarCeldas(); });
+const editarCelda = seguro(async b=>{
+  const codigo = prompt('Código de la celda', b.dataset.codigo); if(codigo===null) return;
+  const tipo = prompt('Tipo de la celda (carro o moto)', b.dataset.tipo); if(tipo===null) return;
+  await api('/api/celdas/'+b.dataset.id,{codigo,tipo},'PUT'); aviso('Celda actualizada',true); cargarCeldas();
+});
+const eliminarCelda = seguro(async id=>{
+  if(!confirm('¿Eliminar esta celda?')) return;
+  await api('/api/celdas/'+id,null,'DELETE'); aviso('Celda eliminada',true); cargarCeldas();
+});
+</script>
+</body>
+</html>
